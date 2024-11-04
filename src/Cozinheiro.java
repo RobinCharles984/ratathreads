@@ -5,6 +5,7 @@ public class Cozinheiro extends Thread{
     //DECLARACAO DE ATRIBUTOS E VARIAVEIS
     String nome;
     Prato prato;
+    Ingrediente ingrediente;
     String algoritmoDeEscalonamento;
 
 
@@ -62,24 +63,12 @@ public class Cozinheiro extends Thread{
             prato = Cozinha.pratos.getFirst();
             System.out.println(nome + " cozinhando " + prato.getNome());
 
-            try {
+            while(prato.trabalhoRestante > 0){
 
-                Cozinha.semaforoBinario.acquire();
-
-                while (prato.trabalhoRestante > 0) {
-
-                    cicloDeCozimento(prato);
-                }
-
-                Cozinha.pratos.removeFirst();
-            } catch (InterruptedException e) {
-
-                e.printStackTrace();
-            } finally {
-
-                Cozinha.semaforoBinario.release();
+                cicloDeCozimento(prato);
             }
 
+            Cozinha.pratos.removeFirst();
             System.out.println(nome + " terminou " + prato.getNome());
         }
     }
@@ -120,6 +109,40 @@ public class Cozinheiro extends Thread{
         }
     }
 
+    void wait(int s){
+        while(s <= 0);
+        s--;
+    }
+
+    void signal(int s){
+        s++;
+    }
+
+    public void SemaforoBinario()
+    {   
+        ingrediente = Cozinha.ingredientes.getFirst();
+        int indice = 0;
+        //Se mutex = 1, entra no CS. Caso contrário, fica em espera
+        int mutex = 1;
+        do{
+            wait(mutex);
+            //CS
+            System.out.println((nome + " buscou " + prato.get(indice)));
+            indice++;
+            signal(mutex);
+            //RS
+        }while(!Cozinha.ingredientes.isEmpty());
+    }
+
+    public void Monitor()
+    {
+
+    }
+
+    public void SemaforoContagem(){
+
+    }
+
     @Override
     public void run(){
 
@@ -132,5 +155,7 @@ public class Cozinheiro extends Thread{
 
             cozinharRR();
         }
+
+        SemaforoBinario();
     }
 }

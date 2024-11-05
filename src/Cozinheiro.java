@@ -1,161 +1,106 @@
+import javax.management.monitor.Monitor;
 import java.util.Objects;
+import java.util.concurrent.Semaphore;
 
-public class Cozinheiro extends Thread{
+class Cozinheiro extends Thread {
 
-    //DECLARACAO DE ATRIBUTOS E VARIAVEIS
+    int indice = 0;
+    long comecoContagem, comecoMonitor, fimContagem, fimMonitor;
+
     String nome;
-    Prato prato;
-    Ingrediente ingrediente;
-    String algoritmoDeEscalonamento;
+    Fogao fogao;
 
+    // Semáforos para sincronização
+    private static final Semaphore semaforoContagem = new Semaphore(3); // Contagem (permit 3)
 
-
-
-    //Construtor
-    public Cozinheiro(String algoritmoDeEscalonamento) {
-        this.algoritmoDeEscalonamento = algoritmoDeEscalonamento;
+    private String definirNomeCozinheiro() {
+        return "Cozinheiro " + Thread.currentThread().getName().substring(Thread.currentThread().getName().length() - 1);
     }
 
-
-
-
-    //METODOS
-
-    private String definirNomeCozinheiro(){
-
-        return "Cozinheiro " + Thread.currentThread().getName().substring(
-                Thread.currentThread().getName().length() - 1);
-    }
-
-    private void cicloDeCozimento(Prato prato){
-
-        //Variaveis auxiliares
-
-        int a = 0;
-        long b = 0;
-        /*variaveis usadas para fazer calculos apenas com o proposito de ocupar a CPU para
-         * simular threads*/
-
-        /*Essa estrutura de repeticao serve apenas para fazer calculos que ocupem a CPU
-         * para simular threads. Buscou-se fazer com que roda-la uma vez ocupasse a CPU por
-         * cerca de 1s*/
-        for (int i = 0; i < 1000000; i++) {
-
-            a = 0;
-
-            for (int j = 0; j < 3180; j++) {
-
-                a += j;
-                b++;
-            }
-
-        }
-
-        prato.trabalhoRestante--;
-    }
-
-    private void cozinharFCFS(){
-
-        /*Essa eh a implementacao antiga de cozinhar, que jah era basicamente um FCFS, mas que
-         * pode ser alterada. Foi colada aqui soh para realocar essa porcao de codigo que ainda era util*/
-        while(!Cozinha.pratos.isEmpty()){
-
-            prato = Cozinha.pratos.getFirst();
-            System.out.println(nome + " cozinhando " + prato.getNome());
-
-            while(prato.trabalhoRestante > 0){
-
-                cicloDeCozimento(prato);
-            }
-
-            Cozinha.pratos.removeFirst();
-            System.out.println(nome + " terminou " + prato.getNome());
-        }
-    }
-
-    private void cozinharRR(){
-
-        final int VALORQUANTUM = 3; //constante usada se mudar o valor do quantum mais facilmente em testes
-        int quantum = VALORQUANTUM;
-        int indice = 0;
-
-        prato = Cozinha.pratos.get(indice);
-
-        while(!Cozinha.pratos.isEmpty()){
-
-            while(quantum > 0){
-
-                System.out.println(nome + " trabalhou 1x em " + prato.getNome());
-                cicloDeCozimento(prato);
-
-                if(prato.trabalhoRestante <= 0){
-
-                    System.out.println((nome + " acabou " + prato.getNome()));
-                    Cozinha.pratos.remove(indice);
-                    break; //quebra soh o for mais interior
-                }
-
-                quantum--;
-            }
-
-            if(Cozinha.pratos.isEmpty()) break;
-
-            quantum = VALORQUANTUM;
-
-            if((indice + 1) < Cozinha.pratos.size()) indice++;
-            else indice = 0;
-
-            prato = Cozinha.pratos.get(indice);
-        }
-    }
-
-    void wait(int s){
-        while(s <= 0);
-        s--;
-    }
-
-    void signal(int s){
-        s++;
-    }
-
-    public void SemaforoBinario()
-    {   
-        ingrediente = Cozinha.ingredientes.getFirst();
-        int indice = 0;
-        //Se mutex = 1, entra no CS. Caso contrário, fica em espera
-        int mutex = 1;
-        do{
-            wait(mutex);
-            //CS
-            System.out.println((nome + " buscou " + prato.get(indice)));
-            indice++;
-            signal(mutex);
-            //RS
-        }while(!Cozinha.ingredientes.isEmpty());
-    }
-
-    public void Monitor()
+     public synchronized void fogaoMonitor()
     {
+        fogao = Cozinha.Fogao.getFirst();
+        comecoMonitor = System.nanoTime();
+        System.out.println("------");
+        System.out.println("Usando " + fogao.nome + " por monitor:");
+        System.out.println("------");
+        int indice = 0;
 
+        while(!Cozinha.Fogao.isEmpty()) {
+            // Seção crítica usando synchronized
+            if(indice >= Cozinha.Fogao.size())
+                break;
+            fogao = Cozinha.Fogao.get(indice);
+            int a = 0;
+            long b = 0;
+            for (int i = 0; i < 1000000; i++) {
+                a = 0;
+                for (int j = 0; j < 3180; j++) {
+                    a += j;
+                    b++;
+                }
+            }
+            System.out.println((nome + " usou " + fogao.nome));
+            indice++;
+        }
+        fimMonitor = System.nanoTime();
     }
 
     public void SemaforoContagem(){
+        fogao = Cozinha.Fogao.getFirst();
+        indice = 0;
+        comecoContagem = System.nanoTime();
+        System.out.println("------");
+        System.out.println("Usando " + fogao.nome + " por semáforo de contagem:");
+        System.out.println("------");
+        while(!Cozinha.Fogao.isEmpty()) {
+            if(indice >= Cozinha.Fogao.size())
+                break;
+            fogao = Cozinha.Fogao.get(indice);
+            try {
+                semaforoContagem.acquire(); // Sincronização com semáforo de contagem
 
+                // Seção crítica
+                int a = 0;
+                long b = 0;
+                for (int i = 0; i < 1000000; i++) {
+                    a = 0;
+                    for (int j = 0; j < 3180; j++) {
+                        a += j;
+                        b++;
+                    }
+                }
+                System.out.println((nome + " usou " + fogao.nome));
+                indice++;
+
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            } finally {
+                semaforoContagem.release();
+            }
+        }
+        fimContagem = System.nanoTime();
     }
 
     @Override
-    public void run(){
-
+    public void run() {
+        //Processos de cozinha
         nome = definirNomeCozinheiro();
 
-        if(Objects.equals(algoritmoDeEscalonamento, "FCFS")){
-            
-            cozinharFCFS();
-        } else if (Objects.equals(algoritmoDeEscalonamento, "RR")) {
+        //Chamando sincronização do fogao
+        fogaoMonitor();
 
-            cozinharRR();
-        }
+        SemaforoContagem();
 
-        SemaforoBinario();
+        //Tempo do fogao
+        double tempoContagem = (fimContagem - comecoContagem) / 1_000_000_000.0;
+        double tempoMonitor = (fimMonitor - comecoMonitor) / 1_000_000_000.0;
+
+        System.out.println("Tempo em Semáforo de Contagem: " + tempoContagem);
+        System.out.println("Tempo em Monitor: " + tempoMonitor);
+
+        //Melhor resultado
+        if(tempoMonitor > tempoContagem) System.out.println("Contagem mais eficaz!");
+        else System.out.println("Monitor mais eficaz!");
     }
 }
